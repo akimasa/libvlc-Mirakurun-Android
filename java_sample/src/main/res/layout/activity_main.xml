@@ -15,22 +15,27 @@
         tools:ignore="true">
 
         <ViewStub
+            android:id="@+id/surface_stub"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout="@layout/surface_view"
-            android:id="@+id/surface_stub" />
+            android:layout="@layout/surface_view" />
 
         <ViewStub
+            android:id="@+id/subtitles_surface_stub"
             android:layout_width="1dp"
             android:layout_height="1dp"
-            android:layout="@layout/surface_view"
-            android:id="@+id/subtitles_surface_stub" />
+            android:layout="@layout/surface_view" />
 
         <ViewStub
+            android:id="@+id/texture_stub"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout="@layout/texture_view"
-            android:id="@+id/texture_stub" />
+            android:layout="@layout/texture_view" />
+
+        <Spinner
+            android:id="@+id/spinner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
 
     </FrameLayout>
 </FrameLayout>

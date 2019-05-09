@@ -11,30 +11,46 @@
 package org.videolan.javasample;
 
 import android.annotation.TargetApi;
+import android.content.DialogInterface;
+import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.graphics.PixelFormat;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
+import android.preference.PreferenceManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.text.Editable;
 import android.util.Log;
 import android.view.SurfaceView;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewStub;
+import android.widget.AdapterView;
+import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.Spinner;
 
+import org.json.JSONArray;
 import org.videolan.libvlc.IVLCVout;
 import org.videolan.libvlc.LibVLC;
 import org.videolan.libvlc.Media;
 import org.videolan.libvlc.MediaPlayer;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
+import java.util.List;
 
-public class JavaActivity extends AppCompatActivity implements IVLCVout.OnNewVideoLayoutListener {
+import android.app.AlertDialog;
+
+public class JavaActivity extends AppCompatActivity implements IVLCVout.OnNewVideoLayoutListener, AdapterView.OnItemSelectedListener {
     private static final boolean USE_SURFACE_VIEW = true;
     private static final boolean ENABLE_SUBTITLES = true;
     private static final String TAG = "JavaActivity";
@@ -64,15 +80,27 @@ public class JavaActivity extends AppCompatActivity implements IVLCVout.OnNewVid
     private int mVideoVisibleWidth = 0;
     private int mVideoSarNum = 0;
     private int mVideoSarDen = 0;
-
+    // InputStream -> String
+    static String InputStreamToString(InputStream is) throws IOException {
+        BufferedReader br = new BufferedReader(new InputStreamReader(is));
+        StringBuilder sb = new StringBuilder();
+        String line;
+        while ((line = br.readLine()) != null) {
+            sb.append(line);
+        }
+        br.close();
+        return sb.toString();
+    }
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.activity_main);
-
+        Spinner spinner;
+        spinner=(Spinner)findViewById(R.id.spinner);
+        spinner.setOnItemSelectedListener(this);
         final ArrayList<String> args = new ArrayList<>();
-        args.add("-vvv");
+//        args.add("-vvv");
         mLibVLC = new LibVLC(this, args);
         mMediaPlayer = new MediaPlayer(mLibVLC);
 
@@ -107,6 +135,7 @@ public class JavaActivity extends AppCompatActivity implements IVLCVout.OnNewVid
     protected void onStart() {
         super.onStart();
 
+        new Thread(new GetURL(this)).start();
         final IVLCVout vlcVout = mMediaPlayer.getVLCVout();
         if (mVideoSurface != null) {
             vlcVout.setVideoView(mVideoSurface);
@@ -117,14 +146,14 @@ public class JavaActivity extends AppCompatActivity implements IVLCVout.OnNewVid
             vlcVout.setVideoView(mVideoTexture);
         vlcVout.attachViews(this);
 
-        try {
-            final Media media = new Media(mLibVLC, getAssets().openFd(ASSET_FILENAME));
-            mMediaPlayer.setMedia(media);
-            media.release();
-        } catch (IOException e) {
-            throw new RuntimeException("Invalid asset folder");
-        }
-        mMediaPlayer.play();
+//        final SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(this);
+//        String server = sp.getString("server",null);
+//        Uri addr = Uri.parse("http://192.168.0.9:40772/api/services/3273601024/stream");
+//            final Media media = new Media(mLibVLC,  addr);
+//            mMediaPlayer.setMedia(media);
+//            media.release();
+//
+//        mMediaPlayer.play();
 
         if (mOnLayoutChangeListener == null) {
             mOnLayoutChangeListener = new View.OnLayoutChangeListener() {
@@ -337,5 +366,61 @@ public class JavaActivity extends AppCompatActivity implements IVLCVout.OnNewVid
         mVideoSarNum = sarNum;
         mVideoSarDen = sarDen;
         updateVideoSurfaces();
+    }
+    @Override
+    public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+        switch (parent.getId()) {
+            case R.id.spinner:
+                Chan item = (Chan)parent.getSelectedItem();
+                if (item.id.contains(("setting"))) {
+                    final SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(this);
+                    AlertDialog.Builder alert = new AlertDialog.Builder(this);
+                    final EditText edittext = new EditText(this);
+                    alert.setMessage("Enter Your Message");
+                    alert.setTitle("Enter Your Title");
+
+                    alert.setView(edittext);
+
+                    alert.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface dialog, int whichButton) {
+
+//                            String YouEditTextValue = edittext.getText().toString();
+                            sp.edit().putString("server", edittext.getText().toString()).commit();
+                        }
+                    });
+
+                    alert.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface dialog, int whichButton) {
+                            // what ever you want to do with No option.
+                        }
+                    });
+
+                    alert.show();
+                    break;
+                }
+                final SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(this);
+                String server = sp.getString("server",null);
+                Log.d("ex", item.id.toString());
+                Uri addr = Uri.parse("http://"+server+"/api/services/"+ item.id + "/stream");
+                final Media media = new Media(mLibVLC,  addr);
+                mMediaPlayer.setMedia(media);
+                media.release();
+
+                mMediaPlayer.play();
+                View decorView = getWindow().getDecorView();
+// Hide both the navigation bar and the status bar.
+// SYSTEM_UI_FLAG_FULLSCREEN is only available on Android 4.1 and higher, but as
+// a general rule, you should design your app to hide the status bar whenever you
+// hide the navigation bar.
+                int uiOptions = View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_FULLSCREEN;
+                decorView.setSystemUiVisibility(uiOptions);
+
+                break;
+        }
+    }
+
+    @Override
+    public void onNothingSelected(AdapterView<?> adapterView) {
     }
 }
